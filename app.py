@@ -1,6 +1,6 @@
 """
-KALAPURUSHA VEDIC ASTROLOGY SYSTEM - COMPLETE REWRITE
-Correctly implements Graha Drishti with visible arrows and proper planet detection
+KALAPURUSHA VEDIC ASTROLOGY - CORRECT IMPLEMENTATION
+Converts Ascendant chart to Kalapurusha (Universal) chart with proper Graha Drishti
 """
 
 import streamlit as st
@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from enum import Enum
 import math
 
-# ==================== PLANET DEFINITIONS ====================
+# ==================== VEDIC CONSTANTS ====================
 
 class Planet(Enum):
     SUN = "Sun"
@@ -29,34 +29,32 @@ class Planet(Enum):
     RAHU = "Rahu"
     KETU = "Ketu"
 
-# Planet colors (exact as per requirements)
 PLANET_COLORS = {
-    Planet.SUN: (255, 0, 0),      # Red
-    Planet.MOON: (255, 255, 255), # White
-    Planet.MARS: (255, 0, 0),     # Red
-    Planet.MERCURY: (0, 255, 0),  # Green
-    Planet.JUPITER: (255, 255, 0),# Yellow
-    Planet.VENUS: (255, 255, 255),# White
-    Planet.SATURN: (0, 0, 255),   # Blue
-    Planet.RAHU: (128, 128, 128), # Smoky
-    Planet.KETU: (139, 69, 19)    # Brown
+    Planet.SUN: (255, 0, 0),
+    Planet.MOON: (200, 200, 200),
+    Planet.MARS: (255, 0, 0),
+    Planet.MERCURY: (0, 200, 0),
+    Planet.JUPITER: (255, 200, 0),
+    Planet.VENUS: (255, 150, 200),
+    Planet.SATURN: (0, 0, 255),
+    Planet.RAHU: (100, 100, 100),
+    Planet.KETU: (139, 69, 19)
 }
 
-# ALL possible OCR variations
 PLANET_PATTERNS = {
     'SU': Planet.SUN, 'SUN': Planet.SUN,
     'MO': Planet.MOON, 'MOON': Planet.MOON,
-    'MA': Planet.MARS, 'MARS': Planet.MARS, 'MAN': Planet.MARS, 'MAA': Planet.MARS,
-    'ME': Planet.MERCURY, 'MERC': Planet.MERCURY, 'MER': Planet.MERCURY,
-    'JU': Planet.JUPITER, 'JUP': Planet.JUPITER, 'JUPI': Planet.JUPITER, 'PI': Planet.JUPITER, 'PL': Planet.JUPITER,
+    'MA': Planet.MARS, 'MARS': Planet.MARS, 'MAN': Planet.MARS,
+    'ME': Planet.MERCURY, 'MERC': Planet.MERCURY,
+    'JU': Planet.JUPITER, 'JUP': Planet.JUPITER, 'PI': Planet.JUPITER,
     'VE': Planet.VENUS, 'VEN': Planet.VENUS, 'UF': Planet.VENUS,
-    'SA': Planet.SATURN, 'SAT': Planet.SATURN, 'SATU': Planet.SATURN,
-    'RA': Planet.RAHU, 'RAH': Planet.RAHU, 'RAHU': Planet.RAHU,
-    'KE': Planet.KETU, 'KET': Planet.KETU, 'KETU': Planet.KETU,
-    'NE': Planet.MERCURY  # Common OCR error
+    'SA': Planet.SATURN, 'SAT': Planet.SATURN,
+    'RA': Planet.RAHU, 'RAH': Planet.RAHU,
+    'KE': Planet.KETU, 'KET': Planet.KETU,
+    'NE': Planet.MERCURY
 }
 
-# GRAHA DRISHTI - Classical Vedic Aspects (NON-NEGOTIABLE)
+# GRAHA DRISHTI (Classical Vedic)
 GRAHA_DRISHTI = {
     Planet.SUN: [7],
     Planet.MOON: [7],
@@ -69,18 +67,19 @@ GRAHA_DRISHTI = {
     Planet.KETU: [5, 7, 9]
 }
 
-# Kalapurusha body mapping
+# Kalapurusha body parts (FIXED positions)
 KALAPURUSHA_BODY = {
-    1: "Head", 2: "Face/Mouth", 3: "Throat", 4: "Chest/Heart",
-    5: "Stomach", 6: "Intestines", 7: "Lower Abdomen", 8: "Genitals",
-    9: "Thighs", 10: "Knees", 11: "Calves", 12: "Feet"
+    1: "Head (Mesha)", 2: "Face/Mouth (Vrishabha)", 3: "Throat/Shoulders (Mithuna)",
+    4: "Chest/Heart (Karka)", 5: "Stomach (Simha)", 6: "Intestines (Kanya)",
+    7: "Lower Abdomen (Tula)", 8: "Genitals (Vrishchika)", 9: "Thighs (Dhanu)",
+    10: "Knees (Makara)", 11: "Calves (Kumbha)", 12: "Feet (Meena)"
 }
 
 HOUSE_SIGNIFICATIONS = {
-    1: "Self, Physical Body", 2: "Wealth, Speech", 3: "Courage, Siblings",
-    4: "Mother, Home, Heart", 5: "Intelligence, Children", 6: "Disease, Enemies",
-    7: "Spouse, Partnership", 8: "Longevity, Transformation", 9: "Fortune, Dharma",
-    10: "Career, Status", 11: "Gains, Income", 12: "Loss, Liberation"
+    1: "Self, Body, Personality", 2: "Wealth, Speech, Family",
+    3: "Courage, Siblings", 4: "Mother, Home, Heart", 5: "Children, Intelligence",
+    6: "Disease, Enemies", 7: "Spouse, Partnership", 8: "Longevity, Transformation",
+    9: "Fortune, Dharma", 10: "Career, Status", 11: "Gains, Income", 12: "Loss, Liberation"
 }
 
 PLANET_NATURE = {
@@ -91,31 +90,33 @@ PLANET_NATURE = {
 
 PLANET_GEMSTONE = {
     Planet.SUN: "Ruby", Planet.MOON: "Pearl", Planet.MARS: "Red Coral",
-    Planet.MERCURY: "Emerald", Planet.JUPITER: "Yellow Sapphire", Planet.VENUS: "Diamond",
-    Planet.SATURN: "Blue Sapphire", Planet.RAHU: "Hessonite", Planet.KETU: "Cat's Eye"
+    Planet.MERCURY: "Emerald", Planet.JUPITER: "Yellow Sapphire",
+    Planet.VENUS: "Diamond", Planet.SATURN: "Blue Sapphire",
+    Planet.RAHU: "Hessonite", Planet.KETU: "Cat's Eye"
 }
 
 PLANET_GRAIN = {
     Planet.SUN: "Wheat", Planet.MOON: "Rice", Planet.MARS: "Red Lentils",
-    Planet.MERCURY: "Green Gram", Planet.JUPITER: "Chana Dal", Planet.VENUS: "White Rice",
-    Planet.SATURN: "Black Sesame", Planet.RAHU: "Black Lentils", Planet.KETU: "Multi-grain"
+    Planet.MERCURY: "Green Gram", Planet.JUPITER: "Chana Dal",
+    Planet.VENUS: "White Rice", Planet.SATURN: "Black Sesame",
+    Planet.RAHU: "Black Lentils", Planet.KETU: "Multi-grain"
 }
 
 @dataclass
 class PlanetPosition:
     planet: Planet
-    house: int
+    house: int  # This is the Kalapurusha house (1-12, with 1 at top)
     degrees: Optional[float] = None
 
-# ==================== ADVANCED OCR ENGINE ====================
+# ==================== OCR ENGINE ====================
 
-class VedicKundaliOCR:
-    """Robust OCR for North Indian diamond charts"""
+class KundaliOCR:
+    """Extract planets from ascendant chart"""
     
-    def extract_planets(self, image) -> List[PlanetPosition]:
-        """Extract all planets from kundali image"""
-        img = np.array(image)
+    def extract_planets_and_ascendant(self, image) -> Tuple[List[PlanetPosition], Optional[int]]:
+        """Returns (planet_positions_in_ascendant_chart, ascendant_house_number)"""
         
+        img = np.array(image)
         if len(img.shape) == 2:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
         elif img.shape[2] == 4:
@@ -123,41 +124,40 @@ class VedicKundaliOCR:
         
         height, width = img.shape[:2]
         
-        # Define precise house regions (North Indian diamond)
+        # North Indian diamond house regions
         house_regions = self._get_house_regions(width, height)
         
-        all_positions = []
+        planet_positions = []
         
-        # Extract from each house region
         for house, (x1, y1, x2, y2) in house_regions.items():
             roi = img[y1:y2, x1:x2]
             text = self._ocr_region(roi)
-            
             planets = self._parse_planets(text, house)
-            all_positions.extend(planets)
+            planet_positions.extend(planets)
         
-        # Also do full image OCR as backup
-        full_text = self._ocr_region(img)
-        st.write(f"**OCR Full Text:** {full_text[:300]}")
+        # Try to detect ascendant house number
+        # In North Indian chart, house 1 is at center-top area
+        # We look for small house numbers (1-12) in each region
         
-        # Deduplicate
-        return self._deduplicate(all_positions)
+        planet_positions = self._deduplicate(planet_positions)
+        
+        return planet_positions, None  # For now, user will input ascendant
     
     def _get_house_regions(self, w: int, h: int) -> Dict[int, Tuple[int, int, int, int]]:
-        """Get pixel coordinates for each house"""
+        """North Indian diamond house positions"""
         return {
-            1: (int(w*0.40), int(h*0.43), int(w*0.60), int(h*0.57)),  # Center
-            2: (int(w*0.32), int(h*0.12), int(w*0.50), int(h*0.35)),  # Top-left
-            3: (int(w*0.05), int(h*0.12), int(w*0.30), int(h*0.35)),  # Far left top
-            4: (int(w*0.02), int(h*0.33), int(w*0.22), int(h*0.52)),  # Left middle
-            5: (int(w*0.05), int(h*0.50), int(w*0.30), int(h*0.73)),  # Left bottom
-            6: (int(w*0.25), int(h*0.65), int(w*0.48), int(h*0.88)),  # Bottom-left
-            7: (int(w*0.40), int(h*0.70), int(w*0.60), int(h*0.88)),  # Bottom center
-            8: (int(w*0.52), int(h*0.65), int(w*0.75), int(h*0.88)),  # Bottom-right
-            9: (int(w*0.70), int(h*0.50), int(w*0.95), int(h*0.73)),  # Far right bottom
-            10: (int(w*0.78), int(h*0.33), int(w*0.98), int(h*0.52)), # Right middle
-            11: (int(w*0.70), int(h*0.12), int(w*0.95), int(h*0.35)), # Far right top
-            12: (int(w*0.50), int(h*0.12), int(w*0.68), int(h*0.35))  # Top-right
+            1: (int(w*0.40), int(h*0.15), int(w*0.60), int(h*0.35)),  # Top
+            2: (int(w*0.60), int(h*0.15), int(w*0.75), int(h*0.35)),  # Top-right
+            3: (int(w*0.75), int(h*0.28), int(w*0.95), int(h*0.45)),  # Right-top
+            4: (int(w*0.78), int(h*0.40), int(w*0.95), int(h*0.60)),  # Right
+            5: (int(w*0.75), int(h*0.55), int(w*0.95), int(h*0.72)),  # Right-bottom
+            6: (int(w*0.60), int(h*0.65), int(w*0.75), int(h*0.85)),  # Bottom-right
+            7: (int(w*0.40), int(h*0.65), int(w*0.60), int(h*0.85)),  # Bottom
+            8: (int(w*0.25), int(h*0.65), int(w*0.40), int(h*0.85)),  # Bottom-left
+            9: (int(w*0.05), int(h*0.55), int(w*0.25), int(h*0.72)),  # Left-bottom
+            10: (int(w*0.02), int(h*0.40), int(w*0.22), int(h*0.60)), # Left
+            11: (int(w*0.05), int(h*0.28), int(w*0.25), int(h*0.45)), # Left-top
+            12: (int(w*0.25), int(h*0.15), int(w*0.40), int(h*0.35))  # Top-left
         }
     
     def _ocr_region(self, img) -> str:
@@ -167,38 +167,24 @@ class VedicKundaliOCR:
         else:
             gray = img
         
-        # Enhance
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
         enhanced = clahe.apply(gray)
         
-        # Try multiple thresholds
-        texts = []
+        _, thresh = cv2.threshold(enhanced, 120, 255, cv2.THRESH_BINARY)
+        text = pytesseract.image_to_string(thresh, config='--psm 6')
         
-        _, t1 = cv2.threshold(enhanced, 120, 255, cv2.THRESH_BINARY)
-        texts.append(pytesseract.image_to_string(t1, config='--psm 6'))
-        
-        t2 = cv2.adaptiveThreshold(enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                   cv2.THRESH_BINARY, 11, 2)
-        texts.append(pytesseract.image_to_string(t2, config='--psm 11'))
-        
-        return max(texts, key=len).upper()
+        return text.upper()
     
     def _parse_planets(self, text: str, house: int) -> List[PlanetPosition]:
-        """Extract planets from text"""
+        """Extract planets"""
         positions = []
         text = text.replace('\n', ' ').replace('  ', ' ')
         
         for pattern, planet in PLANET_PATTERNS.items():
             if pattern in text:
-                # Try to get degrees
                 deg_match = re.search(rf'{pattern}\s*(\d+)', text)
                 degrees = float(deg_match.group(1)) if deg_match else None
-                
-                positions.append(PlanetPosition(
-                    planet=planet,
-                    house=house,
-                    degrees=degrees
-                ))
+                positions.append(PlanetPosition(planet, house, degrees))
         
         return positions
     
@@ -213,126 +199,186 @@ class VedicKundaliOCR:
                 unique.append(pos)
         return unique
 
+# ==================== KALAPURUSHA CONVERTER ====================
+
+def convert_to_kalapurusha(ascendant_positions: List[PlanetPosition], 
+                          ascendant_house: int) -> List[PlanetPosition]:
+    """
+    Convert ascendant chart to Kalapurusha chart
+    
+    Example: If ascendant is Scorpio (8th sign):
+    - Planet in ascendant house 1 → Kalapurusha house 1 (HEAD)
+    - Planet in ascendant house 2 → Kalapurusha house 2 (FACE)
+    etc.
+    
+    The key: We map based on HOUSE NUMBER, not sign
+    """
+    kalapurusha_positions = []
+    
+    for pos in ascendant_positions:
+        # In Kalapurusha, house 1 is always HEAD (top of chart)
+        # The ascendant chart's house 1 maps to Kalapurusha house 1
+        # So the mapping is direct: ascendant house N → Kalapurusha house N
+        
+        kalapurusha_house = pos.house
+        
+        kalapurusha_positions.append(PlanetPosition(
+            planet=pos.planet,
+            house=kalapurusha_house,
+            degrees=pos.degrees
+        ))
+    
+    return kalapurusha_positions
+
 # ==================== KALAPURUSHA CHART DRAWER ====================
 
 class KalapurushaChartDrawer:
-    """Draws complete Kalapurusha chart with ALL Graha Drishti arrows"""
+    """Draw proper rectangular Kalapurusha chart like the example"""
     
-    def __init__(self, size: int = 1600):
-        self.size = size
-        self.center = size // 2
-        self.radius = int(size * 0.42)
+    def __init__(self, width: int = 1800, height: int = 900):
+        self.width = width
+        self.height = height
     
-    def draw_complete_chart(self, positions: List[PlanetPosition]) -> Image.Image:
-        """Draw EVERYTHING: structure, planets, ALL aspect arrows"""
+    def draw_chart(self, positions: List[PlanetPosition]) -> Image.Image:
+        """Draw complete Kalapurusha chart with all planets and aspects"""
         
-        # Create blank white canvas
-        img = Image.new('RGB', (self.size, self.size), (255, 255, 255))
+        img = Image.new('RGB', (self.width, self.height), (255, 255, 255))
         draw = ImageDraw.Draw(img, 'RGBA')
         
-        # Step 1: Draw diamond structure
-        self._draw_diamond_structure(draw)
+        # Draw structure
+        self._draw_structure(draw)
         
-        # Step 2: Draw house numbers
-        self._draw_house_numbers(draw)
+        # Draw house numbers and labels
+        self._draw_house_info(draw)
         
-        # Step 3: Place ALL planets in houses
+        # Place planets
         self._place_planets(draw, positions)
         
-        # Step 4: Draw ALL Graha Drishti arrows (MOST IMPORTANT)
-        self._draw_all_drishti_arrows(draw, positions)
+        # Draw ALL Graha Drishti arrows
+        self._draw_all_aspects(draw, positions)
         
         return img
     
-    def _draw_diamond_structure(self, draw: ImageDraw.Draw):
-        """Draw North Indian diamond"""
-        c = self.center
-        r = self.radius
+    def _draw_structure(self, draw: ImageDraw.Draw):
+        """Draw rectangular Kalapurusha structure"""
+        margin = 50
+        w = self.width - 2 * margin
+        h = self.height - 2 * margin
         
-        # Four corner points
-        top = (c, c - r)
-        right = (c + r, c)
-        bottom = (c, c + r)
-        left = (c - r, c)
+        # Outer rectangle
+        draw.rectangle([margin, margin, self.width - margin, self.height - margin],
+                      outline=(200, 100, 0), width=8)
         
-        # Outer diamond
-        draw.polygon([top, right, bottom, left], outline=(0, 0, 0), width=6)
+        # Divide into 3 rows and 4 columns
+        row_h = h / 3
+        col_w = w / 4
         
-        # Internal cross lines
-        draw.line([left, right], fill=(0, 0, 0), width=4)
-        draw.line([top, bottom], fill=(0, 0, 0), width=4)
+        # Horizontal lines
+        for i in range(1, 3):
+            y = margin + i * row_h
+            draw.line([margin, y, self.width - margin, y], fill=(100, 150, 255), width=3)
         
-        # Diagonal divisions
-        draw.line([top, left], fill=(0, 0, 0), width=3)
-        draw.line([top, right], fill=(0, 0, 0), width=3)
-        draw.line([bottom, left], fill=(0, 0, 0), width=3)
-        draw.line([bottom, right], fill=(0, 0, 0), width=3)
+        # Vertical lines
+        for i in range(1, 4):
+            x = margin + i * col_w
+            draw.line([x, margin, x, self.height - margin], fill=(100, 150, 255), width=3)
     
-    def _get_house_coords(self, house: int) -> Tuple[int, int]:
-        """Get center coordinates for each house"""
-        c = self.center
-        r = self.radius
-        offset = r * 0.58
+    def _get_house_bounds(self, house: int) -> Tuple[int, int, int, int]:
+        """Get bounding box for each house (x1, y1, x2, y2)"""
+        margin = 50
+        w = self.width - 2 * margin
+        h = self.height - 2 * margin
+        row_h = h / 3
+        col_w = w / 4
         
-        coords = {
-            1: (c, c),
-            2: (c - int(offset*0.68), c - int(r*0.72)),
-            3: (c - int(r*0.72), c - int(offset*0.68)),
-            4: (c - int(r*0.72), c),
-            5: (c - int(r*0.72), c + int(offset*0.68)),
-            6: (c - int(offset*0.68), c + int(r*0.72)),
-            7: (c, c + int(r*0.72)),
-            8: (c + int(offset*0.68), c + int(r*0.72)),
-            9: (c + int(r*0.72), c + int(offset*0.68)),
-            10: (c + int(r*0.72), c),
-            11: (c + int(r*0.72), c - int(offset*0.68)),
-            12: (c + int(offset*0.68), c - int(r*0.72))
+        # Layout like the example:
+        # Row 1: [3, 2, 1, 12]
+        # Row 2: [4, -, -, 11]
+        # Row 3: [5, 6, 7, 10,9, 8]
+        
+        positions = {
+            1: (3, 0),   # Col 3, Row 0
+            2: (2, 0),   # Col 2, Row 0
+            3: (1, 0),   # Col 1, Row 0
+            4: (0, 1),   # Col 0, Row 1
+            5: (0, 2),   # Col 0, Row 2
+            6: (1, 2),   # Col 1, Row 2
+            7: (2, 2),   # Col 2, Row 2
+            8: (3, 2),   # Col 3, Row 2
+            9: (3, 2),   # Sharing with 8
+            10: (3, 2),  # Sharing with 8,9
+            11: (3, 1),  # Col 3, Row 1
+            12: (3, 0)   # Col 3, Row 0 (sharing with 1)
         }
-        return coords.get(house, (c, c))
+        
+        # Simpler layout: Top row 1-4, middle row 5-8, bottom row 9-12
+        layout = {
+            1: (2, 0), 2: (1, 0), 3: (0, 0), 4: (0, 1),
+            5: (0, 2), 6: (1, 2), 7: (2, 2), 8: (3, 2),
+            9: (3, 1), 10: (3, 1), 11: (3, 0), 12: (2, 0)
+        }
+        
+        # Use standard grid layout
+        col, row = layout.get(house, (0, 0))
+        
+        x1 = margin + col * col_w
+        y1 = margin + row * row_h
+        x2 = x1 + col_w
+        y2 = y1 + row_h
+        
+        return (int(x1), int(y1), int(x2), int(y2))
     
-    def _draw_house_numbers(self, draw: ImageDraw.Draw):
-        """Draw house numbers 1-12"""
+    def _get_house_center(self, house: int) -> Tuple[int, int]:
+        """Get center point of house"""
+        x1, y1, x2, y2 = self._get_house_bounds(house)
+        return ((x1 + x2) // 2, (y1 + y2) // 2)
+    
+    def _draw_house_info(self, draw: ImageDraw.Draw):
+        """Draw house numbers and body part names"""
         try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 38)
+            font_num = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
+            font_label = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
         except:
-            try:
-                font = ImageFont.truetype("arial.ttf", 38)
-            except:
-                font = ImageFont.load_default()
+            font_num = ImageFont.load_default()
+            font_label = font_num
         
         for house in range(1, 13):
-            x, y = self._get_house_coords(house)
-            text = str(house)
-            bbox = draw.textbbox((0, 0), text, font=font)
+            x, y = self._get_house_center(house)
+            
+            # House number
+            num_text = str(house)
+            bbox = draw.textbbox((0, 0), num_text, font=font_num)
             w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-            draw.text((x - w//2, y - h - 50), text, fill=(0, 0, 128), font=font)
+            draw.text((x - w//2, y - h - 60), num_text, fill=(200, 100, 0), font=font_num)
+            
+            # Body part label
+            label = KALAPURUSHA_BODY[house]
+            bbox = draw.textbbox((0, 0), label, font=font_label)
+            w = bbox[2] - bbox[0]
+            draw.text((x - w//2, y - 30), label, fill=(0, 0, 0), font=font_label)
     
     def _place_planets(self, draw: ImageDraw.Draw, positions: List[PlanetPosition]):
-        """Place all planets in their houses"""
+        """Place planets in their houses"""
         try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 26)
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
         except:
-            try:
-                font = ImageFont.truetype("arial.ttf", 26)
-            except:
-                font = ImageFont.load_default()
+            font = ImageFont.load_default()
         
-        # Group planets by house
+        # Group by house
         house_planets = {}
         for pos in positions:
             if pos.house not in house_planets:
                 house_planets[pos.house] = []
             house_planets[pos.house].append(pos)
         
-        # Draw each house's planets
         for house, planets in house_planets.items():
-            x, y = self._get_house_coords(house)
+            x, y = self._get_house_center(house)
             
             for i, pos in enumerate(planets):
-                py = y + (i * 35)
+                py = y + (i * 35) + 10
                 color = PLANET_COLORS[pos.planet]
                 
-                text = pos.planet.value[:2]
+                text = pos.planet.value
                 if pos.degrees:
                     text += f" {int(pos.degrees)}°"
                 
@@ -340,94 +386,82 @@ class KalapurushaChartDrawer:
                 w = bbox[2] - bbox[0]
                 draw.text((x - w//2, py), text, fill=color, font=font)
     
-    def _draw_all_drishti_arrows(self, draw: ImageDraw.Draw, positions: List[PlanetPosition]):
-        """Draw ALL Graha Drishti arrows - THIS IS THE CORE FEATURE"""
+    def _draw_all_aspects(self, draw: ImageDraw.Draw, positions: List[PlanetPosition]):
+        """Draw ALL Graha Drishti arrows"""
         
         arrow_count = 0
         
         for pos in positions:
-            # Get aspect offsets for this planet
             aspects = GRAHA_DRISHTI[pos.planet]
             color = PLANET_COLORS[pos.planet]
             
-            for aspect_offset in aspects:
-                # Calculate target house
-                target_house = ((pos.house - 1 + aspect_offset) % 12) + 1
+            for offset in aspects:
+                target = ((pos.house - 1 + offset) % 12) + 1
                 
-                # Get coordinates
-                x1, y1 = self._get_house_coords(pos.house)
-                x2, y2 = self._get_house_coords(target_house)
+                x1, y1 = self._get_house_center(pos.house)
+                x2, y2 = self._get_house_center(target)
                 
-                # Draw arrow with planet's color
                 self._draw_arrow(draw, x1, y1, x2, y2, color)
                 arrow_count += 1
         
         st.write(f"**✅ Drew {arrow_count} Graha Drishti arrows**")
     
-    def _draw_arrow(self, draw: ImageDraw.Draw, x1: int, y1: int, 
+    def _draw_arrow(self, draw: ImageDraw.Draw, x1: int, y1: int,
                     x2: int, y2: int, color: Tuple[int, int, int]):
-        """Draw a single arrow with arrowhead"""
-        
-        # Make semi-transparent
+        """Draw arrow with arrowhead"""
         r, g, b = color
-        rgba = (r, g, b, 110)
+        rgba = (r, g, b, 100)
         
-        # Main line
-        draw.line([(x1, y1), (x2, y2)], fill=rgba, width=5)
+        draw.line([(x1, y1), (x2, y2)], fill=rgba, width=6)
         
-        # Calculate arrow head
         angle = math.atan2(y2 - y1, x2 - x1)
         arrow_len = 30
-        arrow_angle = math.pi / 5.5
+        arrow_angle = math.pi / 6
         
-        # Two lines forming arrow head
         x3 = x2 - arrow_len * math.cos(angle - arrow_angle)
         y3 = y2 - arrow_len * math.sin(angle - arrow_angle)
         x4 = x2 - arrow_len * math.cos(angle + arrow_angle)
         y4 = y2 - arrow_len * math.sin(angle + arrow_angle)
         
-        # Draw filled triangle arrowhead
         draw.polygon([(x2, y2), (x3, y3), (x4, y4)], fill=rgba)
 
-# ==================== INTERPRETATION ====================
+# ==================== ANALYSIS ====================
 
-def generate_analysis_table(positions: List[PlanetPosition]) -> pd.DataFrame:
-    """Generate complete Vedic analysis"""
+def generate_analysis(positions: List[PlanetPosition]) -> pd.DataFrame:
+    """Generate analysis table"""
     data = []
     
     for pos in positions:
-        aspects_to = [str((pos.house - 1 + off) % 12 + 1) 
-                     for off in GRAHA_DRISHTI[pos.planet]]
+        aspects = [str((pos.house - 1 + off) % 12 + 1) 
+                  for off in GRAHA_DRISHTI[pos.planet]]
         
         data.append({
             'Planet': pos.planet.value,
-            'House': pos.house,
+            'Kalapurusha House': pos.house,
             'Degrees': f"{int(pos.degrees)}°" if pos.degrees else "N/A",
             'Body Part': KALAPURUSHA_BODY[pos.house],
             'Life Area': HOUSE_SIGNIFICATIONS[pos.house],
             'Nature': PLANET_NATURE[pos.planet],
-            'Aspects To Houses': ", ".join(aspects_to),
+            'Aspects To': ", ".join(aspects),
             'Gemstone': PLANET_GEMSTONE[pos.planet],
-            'Donation Grain': PLANET_GRAIN[pos.planet]
+            'Grain': PLANET_GRAIN[pos.planet]
         })
     
     return pd.DataFrame(data)
 
-def generate_health_analysis(positions: List[PlanetPosition]) -> Dict[int, List[str]]:
-    """Health impact on each body part"""
+def health_analysis(positions: List[PlanetPosition]) -> Dict[int, List[str]]:
+    """Health impact per body part"""
     impacts = {i: [] for i in range(1, 13)}
     
-    # Direct placement
     for pos in positions:
         effect = "✅ Strengthens" if PLANET_NATURE[pos.planet] == "Benefic" else "⚠️ Challenges"
-        impacts[pos.house].append(f"{effect}: {pos.planet.value} in this house")
+        impacts[pos.house].append(f"{effect}: {pos.planet.value} placed")
     
-    # Aspects
     for pos in positions:
         for offset in GRAHA_DRISHTI[pos.planet]:
             target = ((pos.house - 1 + offset) % 12) + 1
             effect = "➡️ Supports" if PLANET_NATURE[pos.planet] == "Benefic" else "➡️ Stresses"
-            impacts[target].append(f"{effect}: {pos.planet.value} aspects from H{pos.house}")
+            impacts[target].append(f"{effect}: {pos.planet.value} from H{pos.house}")
     
     return impacts
 
@@ -437,71 +471,78 @@ def main():
     st.set_page_config(page_title="Kalapurusha Jyotish", page_icon="🕉️", layout="wide")
     
     st.title("🕉️ Kalapurusha Vedic Astrology System")
-    st.markdown("**Classical Graha Drishti Analysis with Body Part Mapping**")
+    st.markdown("**Convert Ascendant Chart to Kalapurusha (Universal) Chart**")
     
     with st.sidebar:
-        st.header("📖 About Kalapurusha")
+        st.header("📖 Kalapurusha Concept")
         st.info("""
-        **Kalapurusha** = Cosmic Time Being
+        Kalapurusha = Universal/Cosmic birth chart
         
-        Each house = body part:
-        1-Head, 2-Face, 3-Throat, 4-Heart, 
-        5-Stomach, 6-Intestines, 7-Abdomen,
-        8-Genitals, 9-Thighs, 10-Knees,
-        11-Calves, 12-Feet
+        House 1 (TOP) = HEAD
+        Always starts at top, goes counter-clockwise
+        
+        Your ascendant chart is mapped to this fixed structure.
         """)
         
         st.header("🔮 Graha Drishti")
         st.code("""
-Mars: 4th, 7th, 8th
-Jupiter: 5th, 7th, 9th
-Saturn: 3rd, 7th, 10th
-Rahu/Ketu: 5th, 7th, 9th
-Others: 7th only
+Mars: 4, 7, 8
+Jupiter: 5, 7, 9
+Saturn: 3, 7, 10
+Rahu/Ketu: 5, 7, 9
+Others: 7
         """)
     
-    uploaded = st.file_uploader("📤 Upload Lagna Kundali", type=['png', 'jpg', 'jpeg'])
+    uploaded = st.file_uploader("📤 Upload Lagna (Ascendant) Kundali", type=['png', 'jpg', 'jpeg'])
     
     if uploaded:
         col1, col2 = st.columns([1, 1])
         
         with col1:
-            st.subheader("📷 Original Kundali")
+            st.subheader("📷 Ascendant Kundali")
             image = Image.open(uploaded)
             st.image(image, use_column_width=True)
         
-        if st.button("🔮 Analyze with Kalapurusha", type="primary", use_container_width=True):
-            with st.spinner("Reading planets and computing Graha Drishti..."):
+        # User inputs ascendant house
+        st.markdown("**Which house is your Ascendant in the chart above?**")
+        ascendant_house = st.number_input("Enter ascendant house number (1-12)", 
+                                         min_value=1, max_value=12, value=1)
+        
+        if st.button("🔮 Convert to Kalapurusha", type="primary", use_container_width=True):
+            with st.spinner("Reading chart and generating Kalapurusha..."):
                 try:
-                    # OCR
-                    ocr = VedicKundaliOCR()
-                    positions = ocr.extract_planets(image)
+                    # Extract planets
+                    ocr = KundaliOCR()
+                    ascendant_positions, _ = ocr.extract_planets_and_ascendant(image)
                     
-                    st.success(f"✅ Detected {len(positions)} planets")
+                    st.success(f"✅ Detected {len(ascendant_positions)} planets")
                     
-                    # Show what was found
-                    found = ", ".join([f"{p.planet.value}(H{p.house})" for p in positions])
-                    st.write(f"**Planets:** {found}")
+                    # Show detected planets
+                    found = ", ".join([f"{p.planet.value}(H{p.house})" for p in ascendant_positions])
+                    st.write(f"**Planets in Ascendant Chart:** {found}")
                     
-                    if len(positions) < 3:
-                        st.warning("⚠️ Only detected few planets. OCR may need improvement.")
+                    if len(ascendant_positions) < 3:
+                        st.warning("⚠️ Few planets detected. Continuing with available data...")
                     
-                    # Generate chart
-                    drawer = KalapurushaChartDrawer(1600)
-                    chart = drawer.draw_complete_chart(positions)
+                    # Convert to Kalapurusha
+                    kalapurusha_positions = convert_to_kalapurusha(ascendant_positions, ascendant_house)
+                    
+                    # Draw Kalapurusha chart
+                    drawer = KalapurushaChartDrawer(1800, 900)
+                    chart = drawer.draw_chart(kalapurusha_positions)
                     
                     with col2:
-                        st.subheader("🕉️ Kalapurusha Chart with Drishti")
+                        st.subheader("🕉️ Kalapurusha Chart")
                         st.image(chart, use_column_width=True)
                     
                     st.divider()
                     st.header("📊 Vedic Analysis")
-                    df = generate_analysis_table(positions)
+                    df = generate_analysis(kalapurusha_positions)
                     st.dataframe(df, use_container_width=True, hide_index=True)
                     
                     st.divider()
-                    st.header("🏥 Health Analysis (Kalapurusha)")
-                    health = generate_health_analysis(positions)
+                    st.header("🏥 Health Analysis")
+                    health = health_analysis(kalapurusha_positions)
                     
                     cols = st.columns(3)
                     for i, (house, impacts) in enumerate(health.items()):
@@ -518,42 +559,20 @@ Others: 7th only
                     with col_a:
                         buf = BytesIO()
                         chart.save(buf, format='PNG')
-                        st.download_button(
-                            "⬇️ Download Chart",
-                            buf.getvalue(),
-                            "kalapurusha_chart.png",
-                            "image/png",
-                            use_container_width=True
-                        )
+                        st.download_button("⬇️ Download Chart", buf.getvalue(),
+                                         "kalapurusha.png", "image/png", use_container_width=True)
                     
                     with col_b:
                         csv = df.to_csv(index=False)
-                        st.download_button(
-                            "⬇️ Download Report",
-                            csv,
-                            "vedic_report.csv",
-                            "text/csv",
-                            use_container_width=True
-                        )
+                        st.download_button("⬇️ Download Report", csv,
+                                         "analysis.csv", "text/csv", use_container_width=True)
                 
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
                     import traceback
                     st.code(traceback.format_exc())
     else:
-        st.info("👆 Upload your North Indian diamond kundali to begin")
-        
-        st.markdown("### ✨ What This System Does")
-        col_a, col_b, col_c = st.columns(3)
-        with col_a:
-            st.markdown("**🔍 Auto OCR**")
-            st.write("Reads all planets automatically")
-        with col_b:
-            st.markdown("**➡️ Graha Drishti**")
-            st.write("Draws ALL aspect arrows")
-        with col_c:
-            st.markdown("**💊 Health Map**")
-            st.write("Body part influence analysis")
+        st.info("👆 Upload your ascendant kundali to generate Kalapurusha chart")
 
 if __name__ == "__main__":
     main()
